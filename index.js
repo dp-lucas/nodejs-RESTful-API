@@ -4,8 +4,9 @@ Primary file for the API
 
 const http = require('http');
 const StringDecoder = require('string_decoder').StringDecoder;
-const routes = require('./routes.js');
-const _data = require('./lib/data');
+const config = require('./lib/config.js');
+const handlers = require('./lib/handlers.js');
+const helpers = require('./lib/helpers.js');
 
 // Instantiate the HTTP server
 const httpServer = http.createServer((req, res) => {    
@@ -31,7 +32,7 @@ const httpServer = http.createServer((req, res) => {
     buffer += decoder.end();
 
     // Match a rout. If undefined then route to default "not found".
-    const route = routes.hasOwnProperty(trimmedPath) ? routes[trimmedPath] : routes["notFound"];
+    const route = handlers.hasOwnProperty(trimmedPath) ? handlers[trimmedPath] : handlers["notFound"];
 
     // Build request general data object
     const data = {
@@ -39,16 +40,31 @@ const httpServer = http.createServer((req, res) => {
       queryString: queryStringObject,
       headers: headers,
       method: method,
-      payload: buffer
+      payload: helpers.parseJsonToObject(buffer)
     };
 
-    //pass request general data in case we need info about the request
-    //pass the response object because router is outside our scope
-    route(data, res);
+    // Route the request to the handler specified in the router
+    route(data, (statusCode, payload) => {
+
+      // Use the status code returned from the handler, or set the default status code to 200
+      statusCode = typeof(statusCode) === 'number' ? statusCode : 200;
+
+      // Use the payload returned from the handler, or set the default payload to an empty object
+      payload = typeof(payload) === 'object' ? payload : {};
+
+      // Convert the payload to a string
+      var payloadString = JSON.stringify(payload);
+
+      // Configure the response
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(statusCode);
+      res.write(payloadString);
+      res.end();
+    });
   });
 });
 
 // Start the server
-httpServer.listen(3000, () => {
-  console.log('The server is up and running on port 3000');
+httpServer.listen(config.httpPort, () => {
+	console.log('The server is up and running on port ' + config.httpPort + ' | ' + config.envName);
 });
